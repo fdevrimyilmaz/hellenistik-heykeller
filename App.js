@@ -32,6 +32,20 @@ function Action({ label, onPress, disabled = false }) {
     </Pressable>
   );
 }
+function TabButton({ label, active, onPress }) {
+  return (
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      style={[styles.tabButton, active && styles.tabButtonActive]}
+    >
+      <Text style={[styles.tabText, active && styles.tabTextActive]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
 function Source({ record }) {
   return (
     <Action
@@ -101,6 +115,7 @@ export default function App() {
   const [coder, setCoder] = useState("");
   const [note, setNote] = useState("");
   const [message, setMessage] = useState("");
+  const [activeTab, setActiveTab] = useState("compare");
   const [filter, setFilter] = useState("Tümü");
   const [groupMode, setGroupMode] = useState("all");
   const sampleSummary = protocol.sampleSummary(records);
@@ -175,6 +190,25 @@ export default function App() {
           prototipi. Katalogda {records.length} eser bulunmaktadır. Özellikler
           araştırmacılar tarafından standartlaştırılmış kategorilerle kodlanır.
         </Text>
+        <View style={styles.tabBar} accessibilityRole="tablist">
+          <TabButton
+            label="Karşılaştır"
+            active={activeTab === "compare"}
+            onPress={() => setActiveTab("compare")}
+          />
+          <TabButton
+            label="Gruplu analiz"
+            active={activeTab === "groups"}
+            onPress={() => setActiveTab("groups")}
+          />
+          <TabButton
+            label="Katalog"
+            active={activeTab === "catalog"}
+            onPress={() => setActiveTab("catalog")}
+          />
+        </View>
+        {activeTab === "compare" ? (
+          <>
         <Text style={styles.sectionHeading}>
           İkonografik ve biçimsel karşılaştırma
         </Text>
@@ -235,6 +269,10 @@ export default function App() {
           Bu asgari veri eşiği uzman değerlendirmesiyle sınanmalıdır; sayısal
           benzerlik tek başına tarihsel etkileşim kanıtı değildir.
         </Text>
+          </>
+        ) : null}
+        {activeTab === "groups" ? (
+          <>
         <Text style={styles.sectionHeading}>
           Tanrı kimliğine göre gruplu analiz
         </Text>
@@ -286,6 +324,10 @@ export default function App() {
             Web ve mobil kayıtlar otomatik eşitlenmez.
           </Text>
         )}
+        </>
+        ) : null}
+        {activeTab === "catalog" ? (
+        <>
         <Text style={styles.sectionHeading}>Kaynaklandırılmış katalog</Text>
         {records.map((r) => (
           <View key={r.id} style={styles.reportCard}>
@@ -314,6 +356,8 @@ export default function App() {
             />
           </View>
         ))}
+        </>
+        ) : null}
         <Text style={styles.sectionHeading}>Bilimsel değerlendirme</Text>
         <Text style={styles.detailText}>
           Bağımsız değerlendiriciler arası uyum ölçümü ve uzman değerlendirmesi
@@ -500,6 +544,36 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 34,
     maxWidth: 800,
+  },
+  tabBar: {
+    flexDirection: "row",
+    backgroundColor: "#e5eeec",
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 22,
+  },
+  tabButton: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 11,
+    paddingHorizontal: 6,
+    borderRadius: 9,
+  },
+  tabButtonActive: {
+    backgroundColor: "#102d3d",
+    shadowColor: "#102d3d",
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  tabText: {
+    color: "#5c7478",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  tabTextActive: {
+    color: "#fff",
   },
   sectionTitle: { marginBottom: 14 },
   sectionHeading: {
