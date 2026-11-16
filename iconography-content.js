@@ -175,6 +175,30 @@
     "source": "Arachne ID 1083263",
     "sourceUrl": "https://arachne.dainst.org/entity/1083263",
     "styleParagraphs": ["Parçalı durum ve modern eklemeler özgün beden bağlamını belirsiz kılar."]
+  },
+  "nam-3335-aphrodite-pan-eros": {
+    "title": "İkonografi",
+    "paragraphs": ["Aphrodite, kendisine yönelen Pan'ı sandaletiyle uzaklaştırırken Eros Pan'ın boynuzunu çeker. Sandalet, çıplaklığı örten el ve üç figürlü anlatı, tanrıçanın güzelliğini mizahi ve dramatik bir Hellenistik sahnede birleştirir."],
+    "note": "National Archaeological Museum kaydı, Delos buluntusunu MÖ yaklaşık 100'e tarihler.",
+    "source": "National Archaeological Museum, Athens, no. 3335",
+    "sourceUrl": "https://www.namuseum.gr/en/collection/ellinistiki-periodos-2/",
+    "styleParagraphs": ["Diyagonal hareket, karşılıklı beden gerilimleri ve anlatısal jestler Hellenistik heykelin teatral niteliğini güçlendirir."]
+  },
+  "british-1872-0816-1": {
+    "title": "İkonografi",
+    "paragraphs": ["British Museum kaydı erkek başını muhtemelen Apollon olarak tanımlar. Kıbrıs'taki Apollon kutsal alanından gelmesi ve dalgalı saç düzeni bu olasılıklı kimliği destekler; ancak kesin atribü olarak sunulmamalıdır."],
+    "note": "Kimlik olasılıklıdır ve kayıt araştırma referansı olarak tutulmuştur.",
+    "source": "British Museum, 1872,0816.1",
+    "sourceUrl": "https://www.britishmuseum.org/collection/object/G_1872-0816-1",
+    "styleParagraphs": ["Kireçtaşındaki saç kıvrımları, Kıbrıs atölyelerinin Hellenistik dönem içindeki yerel yorumlarını incelemek için karşılaştırma noktasıdır."]
+  },
+  "british-1973-0327-2": {
+    "title": "İkonografi",
+    "paragraphs": ["Başın üstte düğümlenen saçları, British Museum'un Apollon Kitharodos yorumuyla ilişkilidir. Kithara doğrudan korunmadığı için atıf, saç tipi, tarih ve karşılaştırmalı ikonografi üzerinden olasılıklı kalır."],
+    "note": "Erken Hellenistik döneme tarihlenen olasılıklı Apollon başıdır.",
+    "source": "British Museum, 1973,0327.2",
+    "sourceUrl": "https://www.britishmuseum.org/collection/object/G_1973-0327-2",
+    "styleParagraphs": ["Saçın düğümlenmesi ve genç ideal yüz, erken Hellenistik tanrı tiplerinin biçimsel özellikleriyle karşılaştırılabilir."]
   }
 };
   if (typeof module !== 'undefined' && module.exports) module.exports = content;

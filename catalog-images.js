@@ -1,5 +1,6 @@
 // Yerel görseller Metro tarafından uygulama paketine alınır.
 module.exports = {
+  "nam-3335-aphrodite-pan-eros": require("./assets/sculptures/originals/nam-3335-aphrodite-pan-eros.jpg"),
   "arachne-1076032": require("./assets/sculptures/originals/arachne-1076032.jpg"),
   "arachne-1075415": require("./assets/sculptures/originals/arachne-1075415.jpg"),
   "arachne-1078720": require("./assets/sculptures/originals/arachne-1078720.jpg"),
