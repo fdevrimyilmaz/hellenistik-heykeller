@@ -183,13 +183,8 @@
         ([a, b]) =>
           b &&
           eligible(b) &&
-          codingComparable(a, b) &&
-          typeof a.coder === "string" &&
-          typeof b.coder === "string" &&
-          a.coder.trim() &&
-          b.coder.trim() &&
-          a.coder.trim().toLocaleLowerCase("tr") !==
-            b.coder.trim().toLocaleLowerCase("tr"),
+          a !== b &&
+          codingComparable(a, b),
       );
     const fields = model.fields.map((f) => {
       const values = pairs
@@ -364,7 +359,29 @@
       count: comparable.length,
     };
   }
+  function missingCompletionFields(record) {
+    const present = value => typeof value === 'string' && value.trim().length > 0;
+    const missing = [];
+    for (const [key, label] of [['bibliography','Kaynakça'],['iconographyText','İkonografi'],['styleText','Stil'],['codingNote','Kaynak ve kodlama gerekçesi']]) {
+      if (!present(record[key])) missing.push(label);
+    }
+    for (const field of model.fields) {
+      if (!field.options.includes(record.features?.[field.id]) && !present(record.observations?.[field.id])) missing.push(field.label);
+    }
+    return missing;
+  }
+  function completionLabel(record) {
+    return record.verificationState === 'verified' && missingCompletionFields(record).length === 0
+      ? 'Doğrulandı' : 'İnceleme bekliyor';
+  }
+  // Eski kayıtlar ve geçmiş girdileri dahil, ad alanı aktarılmaz.
+  function omitCoderName(key, value) {
+    return key === 'coder' ? undefined : value;
+  }
   const api = {
+    missingCompletionFields,
+    completionLabel,
+    omitCoderName,
     roles,
     MINIMUM_FIELDS,
     role,

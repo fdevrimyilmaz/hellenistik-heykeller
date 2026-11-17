@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, useLocalSearchParams } from 'expo-router';
+import ResearchScreen from './ResearchScreen';
+import { useEffect, useMemo, useState } from "react";
 import {
   Image,
   Linking,
   Modal,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,6 +21,7 @@ const options = model.records;
 const catalogImages = require("./catalog-images");
 const protocol = require("./research-protocol");
 const iconography = require("./iconography-content");
+const { visibleCatalog } = require('./catalog-presentation');
 function Action({ label, onPress, disabled = false }) {
   return (
     <Pressable
@@ -29,20 +32,6 @@ function Action({ label, onPress, disabled = false }) {
       style={styles.selector}
     >
       <Text style={styles.selectorValue}>{label}</Text>
-    </Pressable>
-  );
-}
-function TabButton({ label, active, onPress }) {
-  return (
-    <Pressable
-      accessibilityRole="tab"
-      accessibilityState={{ selected: active }}
-      onPress={onPress}
-      style={[styles.tabButton, active && styles.tabButtonActive]}
-    >
-      <Text style={[styles.tabText, active && styles.tabTextActive]}>
-        {label}
-      </Text>
     </Pressable>
   );
 }
@@ -96,38 +85,39 @@ export default function App() {
     JSON.parse(JSON.stringify(model.records)),
   );
   const [storageReady, setStorageReady] = useState(false);
+  const displayRecords = useMemo(() => visibleCatalog(records), [records]);
   const [saving, setSaving] = useState(false);
   const [iconographyText, setIconographyText] = useState("");
   const [styleText, setStyleText] = useState("");
+  const [bibliography, setBibliography] = useState("");
   const [observations, setObservations] = useState({});
   useEffect(() => {
-    AsyncStorage.getItem(storageKey).then(raw => {
+    AsyncStorage.getItem(storageKey).then(async raw => {
       if (!raw) return;
-      const saved = JSON.parse(raw);
+      const saved = JSON.parse(raw, protocol.omitCoderName);
       if (Array.isArray(saved)) saved.forEach(r => { if (r?.features?.hair === "Bant ve topuz") r.features.hair = "Alın bandı + chignon"; });
       if (!Array.isArray(saved) || !saved.every(protocol.validateCatalogRecord)) throw Error('Invalid records');
+      await AsyncStorage.setItem(storageKey, JSON.stringify(saved, protocol.omitCoderName));
       setRecords(current => current.map(seed => saved.find(r => r.id === seed.id && r.source === seed.source) || seed));
     }).catch(() => setMessage("Cihazdaki kayıtlar okunamadı.")).finally(() => setStorageReady(true));
   }, []);
   const [first, setFirst] = useState(options[0].id);
   const [second, setSecond] = useState(options[1].id);
   const [selectedRecord, setSelectedRecord] = useState(null);
-  const [coder, setCoder] = useState("");
   const [note, setNote] = useState("");
   const [message, setMessage] = useState("");
-  const [activeTab, setActiveTab] = useState("compare");
-  const [filter, setFilter] = useState("Tümü");
-  const [groupMode, setGroupMode] = useState("all");
-  const sampleSummary = protocol.sampleSummary(records);
-  const groupedPairs = protocol.comparisonPairs(records, groupMode);
-  const a = records.find((r) => r.id === first),
-    b = records.find((r) => r.id === second);
-  const result = model.compare(a, b);
-  const active = records.find((r) => r.id === selectedRecord);
-  function cycle(current, setter) {
-    const index = records.findIndex((r) => r.id === current);
-    setter(records[(index + 1) % records.length].id);
+  const { tab } = useLocalSearchParams();
+  const activeTab = ['compare', 'groups', 'catalog'].includes(tab) ? tab : 'compare';
+  function setActiveTab(next) { router.setParams({ tab: next }); }
+  function openEditor(record) {
+    setSelectedRecord(record.id);
+    setNote(record.codingNote || '');
+    setBibliography(record.bibliography || '');
+    setIconographyText(record.iconographyText ?? iconography[record.id]?.paragraphs.join('\n\n') ?? '');
+    setStyleText(record.styleText ?? iconography[record.id]?.styleParagraphs?.join('\n\n') ?? '');
+    setObservations(record.observations || {}); setMessage('');
   }
+  const active = records.find((r) => r.id === selectedRecord);
   function changeFeature(field) {
     const values = [null, ...field.options];
     const value =
@@ -139,6 +129,8 @@ export default function App() {
               ...r,
               features: { ...r.features, [field.id]: value },
               codingStatus: "Taslak; kaydedilmedi",
+              verificationState: 'draft',
+              verifiedAt: null,
             }
           : r,
       ),
@@ -146,227 +138,36 @@ export default function App() {
   }
   async function saveCoding(textsOnly = false) {
     if (!active || !storageReady || saving) return;
-    const complete = Boolean(coder.trim() && note.trim());
+    const edited = {...active, iconographyText, styleText, bibliography: bibliography.trim(), observations, codingNote: note.trim()};
+    const missing = protocol.missingCompletionFields(edited);
+    const complete = missing.length === 0;
     const nextRecords = records.map(r => r.id === active.id ? {
-      ...r, iconographyText, styleText, observations,
+      ...r, ...edited,
+      verificationState: complete ? 'verified' : 'draft',
+      verifiedAt: complete ? new Date().toISOString() : null,
+      verificationBasis: 'Araştırmacının doldurduğu kayıt alanlarının tamamlığı',
       ...(textsOnly ? {} : {
-        coder: coder.trim(), codingNote: note.trim(), codedAt: new Date().toISOString(),
+        codingNote: note.trim(), codedAt: new Date().toISOString(),
         codingStatus: complete
-          ? "Araştırmacı kodlaması tamamlandı; bağımsız doğrulama yapılmadı"
-          : "Taslak kaydedildi; kodlayıcı veya kaynak gerekçesi eksik"
+          ? "Doğrulandı"
+          : "Taslak kaydedildi; eksik alanlar: " + missing.join(', ')
       })
     } : r);
     setSaving(true);
     setMessage("Kaydediliyor…");
     try {
-      await AsyncStorage.setItem(storageKey, JSON.stringify(nextRecords));
+      await AsyncStorage.setItem(storageKey, JSON.stringify(nextRecords, protocol.omitCoderName));
       setRecords(nextRecords);
       setMessage(textsOnly
-        ? "İkonografi, stil ve gözlemleriniz bu cihazda kaydedildi."
-        : complete ? "Kodlama ve metinler bu cihazda kaydedildi."
-        : "Taslak bu cihazda kaydedildi. Kodlamayı tamamlamak için kodlayıcı adı ve kaynak gerekçesini ekleyin.");
+        ? complete ? "Doğrulandı. Tüm alanlar bu cihazda kaydedildi." : "İkonografi, stil ve gözlemleriniz bu cihazda kaydedildi."
+        : complete ? "Doğrulandı. Tüm alanlar bu cihazda kaydedildi."
+        : "Taslak kaydedildi. Eksik alanlar: " + missing.join(', '));
     } catch { setMessage("Kayıt yapılamadı. Metinler açık formda duruyor; yeniden deneyin."); }
     finally { setSaving(false); }
   }
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.brandMark}>
-            <Text style={styles.brandLetter}>H</Text>
-          </View>
-          <View>
-            <Text style={styles.brand}>hellenistik</Text>
-            <Text style={styles.brandSub}>Apollon ve Afrodit</Text>
-          </View>
-        </View>
-        <Text style={styles.hero}>
-          Hellenistik Dönem{"\n"}Apollon ve Afrodit Heykelleri
-        </Text>
-        <Text style={styles.description}>
-          Hellenistik Dönem’e (MÖ 323–31) tarihlenen Apollon ve Afrodit
-          heykellerinin ikonografik ve biçimsel özelliklerinin kaynaklandırılmış
-          katalog verileri üzerinden karşılaştırılmasına yönelik araştırma
-          prototipi. Katalogda {records.length} eser bulunmaktadır. Özellikler
-          araştırmacılar tarafından standartlaştırılmış kategorilerle kodlanır.
-        </Text>
-        <View style={styles.tabBar} accessibilityRole="tablist">
-          <TabButton
-            label="Karşılaştır"
-            active={activeTab === "compare"}
-            onPress={() => setActiveTab("compare")}
-          />
-          <TabButton
-            label="Gruplu analiz"
-            active={activeTab === "groups"}
-            onPress={() => setActiveTab("groups")}
-          />
-          <TabButton
-            label="Katalog"
-            active={activeTab === "catalog"}
-            onPress={() => setActiveTab("catalog")}
-          />
-        </View>
-        {activeTab === "compare" ? (
-          <>
-        <Text style={styles.sectionHeading}>
-          İkonografik ve biçimsel karşılaştırma
-        </Text>
-        <Action
-          label={"Birinci eser: " + a.title}
-          onPress={() => cycle(first, setFirst)}
-        />
-        <Action
-          label={"İkinci eser: " + b.title}
-          onPress={() => cycle(second, setSecond)}
-        />
-        <View style={styles.analysisCard}>
-          <Text style={styles.analysisLabel}>
-            {result.same
-              ? "İki farklı eser seçin"
-              : result.score === null
-                ? "Benzerlik puanı için veri yetersiz"
-                : result.score + " / 100 benzerlik"}
-          </Text>
-          <Text style={styles.analysisCopy}>
-            {result.count} / {model.fields.length} alan karşılaştırılabilir ·
-            veri kapsamı %{result.coverage}
-          </Text>
-          {result.groups.map((g) => (
-            <Text key={g.name} style={styles.detailText}>
-              {g.name}:{" "}
-              {g.count && !result.same
-                ? g.score + " / 100 (" + g.count + " alan; kısmi sonuç)"
-                : "Değerlendirilemiyor"}
-            </Text>
-          ))}
-        </View>
-        <Action
-          label={"Görünüm: " + filter}
-          onPress={() => {
-            const values = ["Tümü", "Ortak", "Farklı", "Bilinmiyor"];
-            setFilter(values[(values.indexOf(filter) + 1) % values.length]);
-          }}
-        />
-        {result.rows
-          .filter((r) => filter === "Tümü" || r.status === filter)
-          .map((r) => (
-            <View key={r.id} style={styles.reportCard}>
-              <Text style={styles.reportTitle}>
-                {r.label} · {r.status}
-              </Text>
-              <Text style={styles.detailText}>
-                {a.title}: {r.a ?? "Bilinmiyor / değerlendirilemiyor"}
-              </Text>
-              <Text style={styles.detailText}>
-                {b.title}: {r.b ?? "Bilinmiyor / değerlendirilemiyor"}
-              </Text>
-            </View>
-          ))}
-        <Text style={styles.detailText}>
-          Puan = ortak / karşılaştırılabilir özellik × 100. Bilinmeyenler hesaba
-          katılmaz. Toplam puan için en az 3 karşılaştırılabilir alan gerekir.
-          Bu asgari veri eşiği uzman değerlendirmesiyle sınanmalıdır; sayısal
-          benzerlik tek başına tarihsel etkileşim kanıtı değildir.
-        </Text>
-          </>
-        ) : null}
-        {activeTab === "groups" ? (
-          <>
-        <Text style={styles.sectionHeading}>
-          Tanrı kimliğine göre gruplu analiz
-        </Text>
-        <Text style={styles.detailText}>
-          Örnekleme kabul edilen: {sampleSummary.total} eser; Apollon{" "}
-          {sampleSummary.apollon}, Afrodit {sampleSummary.afrodit}.           Hedef toplam
-          10–15; tanrı başına 5–8, toplam en fazla 15. Künye/referans kayıtları
-          örneklem sayısına katılmaz. Aşağıdaki otomatik karşılaştırma,
-          kaynaklandırılmış katalog kayıtlarını ayrıca gösterir.
-        </Text>
-        <Action
-          label={
-            "Grup: " +
-            {
-              all: "Tümü",
-              apollo: "Apollon–Apollon",
-              aphrodite: "Afrodit–Afrodit",
-              cross: "Apollon–Afrodit",
-            }[groupMode]
-          }
-          onPress={() => {
-            const groups = ["all", "apollo", "aphrodite", "cross"];
-            setGroupMode(
-              groups[(groups.indexOf(groupMode) + 1) % groups.length],
-            );
-          }}
-        />
-        {groupedPairs.length ? (
-          groupedPairs.map((pair) => (
-            <View
-              key={pair.first + "-" + pair.second}
-              style={styles.reportCard}
-            >
-              <Text style={styles.reportTitle}>
-                {pair.firstTitle} / {pair.secondTitle}
-              </Text>
-              <Text style={styles.detailText}>
-                {pair.score === null
-                  ? "Benzerlik puanı için veri yetersiz"
-                  : pair.score + " / 100"}{" "}
-                · veri kapsamı %{pair.coverage}
-              </Text>
-            </View>
-          ))
-        ) : (
-          <Text style={styles.detailText}>
-            Seçili grupta karşılaştırılabilir en az iki katalog kaydı gereklidir.
-            Araştırma örneklemi ve bağımsız kodlayıcı dosyaları ayrıca yönetilir.
-            Web ve mobil kayıtlar otomatik eşitlenmez.
-          </Text>
-        )}
-        </>
-        ) : null}
-        {activeTab === "catalog" ? (
-        <>
-        <Text style={styles.sectionHeading}>Kaynaklandırılmış katalog</Text>
-        {records.map((r) => (
-          <View key={r.id} style={styles.reportCard}>
-            {r.image ? (
-              <ArtworkImage record={r} />
-            ) : null}
-            <Text style={styles.cardTitle}>{r.title}</Text>
-            <Text style={styles.detailText}>
-              {r.date} · {r.museum}
-            </Text>
-            <Text style={styles.detailText}>{r.preservation}</Text>
-            <Text style={styles.detailText}>{r.codingStatus}</Text>
-            <Source record={r} />
-            <Action
-              label="Eser fişi ve elle kodlama"
-              disabled={!storageReady}
-              onPress={() => {
-                setSelectedRecord(r.id);
-                setCoder(r.coder || "");
-                setNote(r.codingNote || "");
-                setIconographyText(r.iconographyText ?? iconography[r.id]?.paragraphs.join("\n\n") ?? "");
-                setStyleText(r.styleText ?? iconography[r.id]?.styleParagraphs?.join("\n\n") ?? "");
-                setObservations(r.observations || {});
-                setMessage("");
-              }}
-            />
-          </View>
-        ))}
-        </>
-        ) : null}
-        <Text style={styles.sectionHeading}>Bilimsel değerlendirme</Text>
-        <Text style={styles.detailText}>
-          Bağımsız değerlendiriciler arası uyum ölçümü ve uzman değerlendirmesi
-          henüz gerçekleştirilmemiştir. Öğrenme kazanımları üzerindeki etkinin
-          ölçülmesi mevcut araştırmanın kapsamı dışındadır. Klasik Dönem
-          tarihsel arka plan olarak ele alınır; Roma Dönemi kopyaları araştırma
-          örneklemine dahil edilmez.
-        </Text>
-      </ScrollView>
+      <ResearchScreen records={displayRecords} activeTab={activeTab} onTab={setActiveTab} first={first} second={second} onFirst={setFirst} onSecond={setSecond} onEdit={openEditor} storageReady={storageReady} ArtworkImage={ArtworkImage} Source={Source} />
       <Modal
         visible={Boolean(active)}
         transparent
@@ -384,7 +185,7 @@ export default function App() {
                   />
                   <Text style={styles.modalTitle}>{active.title}</Text>
                   {[
-                    ["Kayıt statüsü", protocol.roles[protocol.role(active)]],
+                    ["Kayıt statüsü", protocol.completionLabel(active)],
                     ["Korunan nesnenin tarihi", active.date],
                     [
                       "Önerilen prototip tarihi",
@@ -415,6 +216,9 @@ export default function App() {
                       <Text style={styles.detailText}>{value}</Text>
                     </View>
                   ))}
+                  <Text style={styles.detailHeading}>Kaynakça</Text>
+                  <TextInput accessibilityLabel="Kaynakça" value={bibliography} onChangeText={setBibliography} multiline textAlignVertical="top" style={styles.writingArea} />
+                  <Text style={styles.detailText}>Kaynakça, ikonografi, stil, kaynak gerekçesi ve sekiz özellik tamamlanıp kaydedildiğinde durum Doğrulandı olur. Korunmayan bir özelliği bilinmiyor bırakıp gözlem alanında gerekçesini yazabilirsiniz.</Text>
                   <Text style={styles.detailHeading}>İkonografi</Text>
                   <TextInput accessibilityLabel="İkonografi metni" value={iconographyText} onChangeText={setIconographyText} multiline textAlignVertical="top" placeholder="İkonografik değerlendirmenizi yazın…" style={styles.writingArea} />
                   <Text style={styles.detailHeading}>Stil</Text>
@@ -430,14 +234,6 @@ export default function App() {
                       <TextInput accessibilityLabel={f.label + " gözlemi"} value={observations[f.id] || ""} onChangeText={text => setObservations(current => ({...current, [f.id]: text}))} multiline textAlignVertical="top" placeholder={f.label + " hakkında kendi gözleminizi yazın…"} style={styles.observationArea} />
                     </View>
                   ))}
-                  <Text style={styles.detailHeading}>Kodlayıcı adı</Text>
-                  <TextInput
-                    accessibilityLabel="Kodlayıcı adı"
-                    value={coder}
-                    onChangeText={setCoder}
-                    maxLength={100}
-                    style={styles.selector}
-                  />
                   <Text style={styles.detailHeading}>
                     Kaynak / sayfa ve gerekçe
                   </Text>
@@ -470,17 +266,17 @@ export default function App() {
   );
 }
 const styles = StyleSheet.create({
-  writingArea: { minHeight: 180, borderWidth: 1, borderColor: "#c8d6d8", borderRadius: 10, padding: 14, fontSize: 15, lineHeight: 24, backgroundColor: "#fbfdfc", marginTop: 12, color: "#183b4a" },
-  observationArea: { minHeight: 85, borderWidth: 1, borderColor: "#d4dfe0", borderRadius: 8, padding: 12, fontSize: 14, lineHeight: 22, marginBottom: 15, backgroundColor: "#fbfdfc", color: "#183b4a" },
+  writingArea: { minHeight: 180, borderWidth: 1, borderColor: "#c8d6d8", borderRadius: 10, padding: 14, fontSize: 15, lineHeight: 24, backgroundColor: "#FFFDF9", marginTop: 12, color: "#183b4a" },
+  observationArea: { minHeight: 85, borderWidth: 1, borderColor: "#d4dfe0", borderRadius: 8, padding: 12, fontSize: 14, lineHeight: 22, marginBottom: 15, backgroundColor: "#FFFDF9", color: "#183b4a" },
   iconographyText: { color: "#315563", fontSize: 15, lineHeight: 25, marginTop: 14 },
-  imageScreen: { flex: 1, backgroundColor: "#102d3d" },
+  imageScreen: { flex: 1, backgroundColor: "#142838" },
   imageTitle: { color: "#fff", fontSize: 19, padding: 16, fontWeight: "700" },
   imageToolbar: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 16, alignItems: "center" },
   imageControl: { backgroundColor: "#fff", borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12, minHeight: 44 },
   imageZoom: { color: "#fff", minWidth: 43, textAlign: "center", fontWeight: "700" },
   imageHelp: { color: "#c9dce1", fontSize: 12, padding: 16 },
   imageHint: { color: "#32616a", backgroundColor: "#eaf3f1", padding: 13, textAlign: "center", marginBottom: 16, fontSize: 12, fontWeight: "600" },
-  safeArea: { flex: 1, backgroundColor: "#eef3f2" },
+  safeArea: { flex: 1, backgroundColor: "#FAF6EE" },
   container: { padding: 20, paddingBottom: 64, maxWidth: 1120, width: "100%", alignSelf: "center" },
   header: {
     flexDirection: "row",
@@ -488,8 +284,8 @@ const styles = StyleSheet.create({
     padding: 22,
     marginBottom: 24,
     borderRadius: 16,
-    backgroundColor: "#102d3d",
-    shadowColor: "#102d3d",
+    backgroundColor: "#142838",
+    shadowColor: "#142838",
     shadowOpacity: 0.18,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 7 },
@@ -504,7 +300,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 13,
   },
-  brandLetter: { color: "#102d3d", fontSize: 23, fontWeight: "800", fontFamily: "serif" },
+  brandLetter: { color: "#142838", fontSize: 23, fontWeight: "800", fontFamily: "serif" },
   brand: { fontWeight: "800", color: "#fff", fontSize: 18, letterSpacing: 0.3 },
   brandSub: { color: "#c9d9d8", fontSize: 10, letterSpacing: 1.2, marginTop: 4, textTransform: "uppercase" },
   avatar: {
@@ -533,7 +329,7 @@ const styles = StyleSheet.create({
     lineHeight: 41,
     fontWeight: "800",
     marginTop: 4,
-    color: "#102d3d",
+    color: "#142838",
     fontFamily: "serif",
   },
   heroAccent: { color: "#b47d32" },
@@ -560,8 +356,8 @@ const styles = StyleSheet.create({
     borderRadius: 9,
   },
   tabButtonActive: {
-    backgroundColor: "#102d3d",
-    shadowColor: "#102d3d",
+    backgroundColor: "#142838",
+    shadowColor: "#142838",
     shadowOpacity: 0.15,
     shadowRadius: 5,
     shadowOffset: { width: 0, height: 2 },
@@ -577,7 +373,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { marginBottom: 14 },
   sectionHeading: {
-    color: "#173b4a",
+    color: "#142838",
     fontSize: 22,
     fontWeight: "800",
     marginTop: 7,
@@ -625,13 +421,13 @@ const styles = StyleSheet.create({
   },
   analysisCard: { backgroundColor: "#dcebea", padding: 20, marginBottom: 28, borderRadius: 14, borderLeftWidth: 4, borderLeftColor: "#b47d32" },
   analysisLabel: {
-    color: "#173b4a",
+    color: "#142838",
     fontSize: 18,
     fontWeight: "600",
     fontFamily: "serif",
   },
   analysisCopy: {
-    color: "#5f777b",
+    color: "#625646",
     fontSize: 11,
     lineHeight: 17,
     marginTop: 8,
@@ -640,11 +436,11 @@ const styles = StyleSheet.create({
   selector: {
     backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: "#cbd9da",
+    borderColor: "#E2D7C5",
     borderRadius: 10,
     padding: 14,
     marginTop: 10,
-    shadowColor: "#173b4a",
+    shadowColor: "#142838",
     shadowOpacity: 0.05,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
@@ -657,7 +453,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   selectorValue: {
-    color: "#173b4a",
+    color: "#142838",
     fontSize: 12,
     fontWeight: "600",
     marginTop: 5,
@@ -704,21 +500,21 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 18,
     marginBottom: 12,
-    shadowColor: "#173b4a",
+    shadowColor: "#142838",
     shadowOpacity: 0.06,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
     elevation: 2,
   },
   reportTitle: {
-    color: "#173b4a",
+    color: "#142838",
     fontSize: 15,
     fontWeight: "600",
     fontFamily: "serif",
     marginTop: 7,
   },
   reportText: {
-    color: "#5f777b",
+    color: "#625646",
     fontSize: 11,
     lineHeight: 17,
     marginTop: 5,
@@ -726,7 +522,7 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "#102d3dcc",
+    backgroundColor: "#142838cc",
     justifyContent: "flex-end",
   },
   modal: {
@@ -744,7 +540,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#173b4a",
+    backgroundColor: "#142838",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -756,20 +552,20 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   modalTitle: {
-    color: "#173b4a",
+    color: "#142838",
     fontSize: 30,
     fontWeight: "800",
     fontFamily: "serif",
     marginTop: 8,
   },
   detailHeading: {
-    color: "#173b4a",
+    color: "#142838",
     fontSize: 15,
     fontWeight: "600",
     fontFamily: "serif",
     marginTop: 22,
   },
-  detailText: { color: "#5f777b", fontSize: 12, lineHeight: 20, marginTop: 7 },
+  detailText: { color: "#625646", fontSize: 12, lineHeight: 20, marginTop: 7 },
   sourceButton: {
     backgroundColor: "#a66f28",
     padding: 15,

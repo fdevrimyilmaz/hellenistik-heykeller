@@ -1,0 +1,38 @@
+const { test, expect } = require('@playwright/test');
+
+test('Expo tasarımı: seçim, filtreler, ayarlar, alt menü ve görsel inceleme', async ({page}) => {
+  const errors=[];
+  page.on('pageerror',error=>errors.push(error.message));
+  await page.setViewportSize({width:390,height:844});
+  await page.goto('/mobile');
+  await expect(page.getByText('Benzerlik puanı için veri yetersiz',{exact:false})).toBeVisible();
+  await page.getByRole('button',{name:'İkonografi',exact:true}).click();
+  await expect(page.getByText('GÖRÜNÜM FİLTRESİ · 3 KRİTER',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Biçim',exact:true}).click();
+  await expect(page.getByText('GÖRÜNÜM FİLTRESİ · 5 KRİTER',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Tümü (8)',exact:true}).click();
+  await page.getByRole('button',{name:'İkinci eser: Afrodit — Venus de Milo',exact:true}).click();
+  await page.getByRole('button',{name:/^Apollon Apollon başı/}).filter({hasText:'74.51.2694'}).click();
+  await expect(page.getByText('Aynı eser için puan hesaplanmaz',{exact:false})).toBeVisible();
+  await page.getByRole('button',{name:'Analiz parametreleri ve ayarlar',exact:true}).click();
+  await page.getByRole('button',{name:'5',exact:true}).click();
+  await page.getByRole('button',{name:'Parametreleri Uygula',exact:true}).click();
+  await page.getByRole('tab',{name:'Gruplu Analiz',exact:true}).click();
+  await expect(page.getByText('KORPUS ÖRNEKLEM DURUMU',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Apollon–Apollon',exact:true}).click();
+  await page.getByRole('tab',{name:'Eser Fişi',exact:true}).click();
+  await page.getByRole('button',{name:'Apollon başı: görseli tam ekran aç',exact:true}).click();
+  await page.getByRole('button',{name:'Görseli yakınlaştır',exact:true}).click();
+  await expect(page.getByText('150%',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Görseli kapat',exact:true}).click();
+  await page.getByRole('tab',{name:'Karşılaştırma',exact:true}).click();
+  await expect(page.getByText('Aynı eser için puan hesaplanmaz',{exact:false})).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+  await page.getByRole('button',{name:'Analiz parametreleri ve ayarlar',exact:true}).click();
+  await expect(page.getByText('Seçili eşik: 5 / 8 alan.',{exact:false})).toBeVisible();
+  await page.getByRole('button',{name:'Kapat',exact:true}).click();
+  await page.screenshot({path:'../data/expo-native-design-preview.png'});
+  await page.setViewportSize({width:1280,height:900});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+  expect(errors).toEqual([]);
+});

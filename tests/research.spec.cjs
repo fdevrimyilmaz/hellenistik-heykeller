@@ -20,7 +20,6 @@ test("kodlama, açıklanabilir karşılaştırma, saklama ve veri aktarımı", a
       ["hair", "Dalgalı"],
     ])
       await page.locator('[name="' + name + '"]').selectOption(value);
-    await page.fill("#coderName", "Test araştırmacısı");
     await page.fill(
       "#codingNote",
       "Yalnızca işlev testi; bilimsel kodlama değildir.",
@@ -219,7 +218,6 @@ test("örneklem grupları, bağımsız dosya, uzman kaydı ve Roma referansı bi
     title: "Test eseri " + id,
     subject: i === 3 ? "Afrodit" : "Apollon",
     sampleRole: "sample",
-    coder: "Birinci değerlendirici",
     codingNote: "İşlev testi; bilimsel veri değildir.",
     features: Object.fromEntries(m.fields.map((f) => [f.id, f.options[0]])),
   }));
@@ -252,7 +250,6 @@ test("örneklem grupları, bağımsız dosya, uzman kaydı ve Roma referansı bi
     ),
   ).toBeTruthy();
   const secondary = JSON.parse(JSON.stringify(records));
-  secondary.forEach((r) => (r.coder = "İkinci değerlendirici"));
   secondary[1].features.hair = "Uzun";
   await page.locator("#secondCoderFile").setInputFiles({
     name: "second.json",

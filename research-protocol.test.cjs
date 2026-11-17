@@ -2,6 +2,12 @@ const { test } = require("node:test"),
   assert = require("node:assert/strict");
 const p = require("./research-protocol"),
   m = require("./research-model");
+test('eski ad alanı kayıt ve geçmişten temizlenir; gözlemler korunur', () => {
+  const legacy = { coder: 'Eski ad', codingNote: 'Kaynak', codeHistory: [{ coder: 'Önceki ad', features: { hair: 'Uzun' } }] };
+  const clean = JSON.parse(JSON.stringify(legacy, p.omitCoderName));
+  assert.deepEqual(clean, { codingNote: 'Kaynak', codeHistory: [{ features: { hair: 'Uzun' } }] });
+  assert.deepEqual(JSON.parse(JSON.stringify(legacy), p.omitCoderName), clean);
+});
 function specimen(id, subject = "Apollon") {
   return {
     ...JSON.parse(JSON.stringify(m.records[0])),
@@ -9,10 +15,20 @@ function specimen(id, subject = "Apollon") {
     title: id,
     subject,
     sampleRole: "sample",
-    coder: "Birinci",
     features: Object.fromEntries(m.fields.map((f) => [f.id, f.options[0]])),
   };
 }
+
+test('tam kayıt doğrulanır; bilinmeyen özellik gerekçe ister ve silinen alan durumu düşürür', () => {
+  const record = {...specimen('complete'), verificationState:'verified', bibliography:'Kaynak', iconographyText:'İkonografi', styleText:'Stil', codingNote:'Gerekçe'};
+  assert.equal(p.completionLabel(record), 'Doğrulandı');
+  record.features.hair = null;
+  assert.notEqual(p.completionLabel(record), 'Doğrulandı');
+  record.observations = {hair:'Baş korunmamış; saç değerlendirilemiyor.'};
+  assert.equal(p.completionLabel(record), 'Doğrulandı');
+  record.bibliography = ' ';
+  assert.deepEqual(p.missingCompletionFields(record), ['Kaynakça']);
+});
 function expert(records, order) {
   return {
     ...p.expertTemplate(records, records[0].id),
@@ -99,7 +115,6 @@ test("Cohen kappa bilinen çapraz tabloda hesaplanır; eksik veri katılmaz", ()
   const second = JSON.parse(JSON.stringify(first));
   first.forEach((r, i) => (r.features.hair = i < 2 ? "Dalgalı" : "Uzun"));
   second.forEach((r, i) => {
-    r.coder = "İkinci";
     r.features.hair = i % 2 ? "Uzun" : "Dalgalı";
     r.features.head = null;
   });
@@ -112,16 +127,15 @@ test("Cohen kappa bilinen çapraz tabloda hesaplanır; eksik veri katılmaz", ()
   assert.equal(head.n, 0);
   assert.equal(head.kappa, null);
 });
-test("aynı kodlayıcı ve künye uyuşmazlığı ölçüm üretmez", () => {
+test("aynı kayıt nesnesi ve künye uyuşmazlığı ölçüm üretmez", () => {
   const a = specimen("a"),
     b = { ...specimen("a"), begin: -270 };
   assert.equal(p.agreement([a], [a]).matchedRecords, 0);
-  b.coder = "İkinci";
   assert.equal(p.agreement([a], [b]).matchedRecords, 0);
 });
 test("tek kategori ve tek gözlemde kappa tanımsız kalır", () => {
   const a = [specimen("a"), specimen("b")],
-    b = a.map((r) => ({ ...r, coder: "İkinci" }));
+    b = a.map((r) => ({ ...r }));
   assert.equal(p.agreement(a, b).fields[0].agreement, 100);
   assert.equal(p.agreement(a, b).fields[0].kappa, null);
 });

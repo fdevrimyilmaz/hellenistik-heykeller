@@ -1,5 +1,10 @@
 // Yerel görseller Metro tarafından uygulama paketine alınır.
 module.exports = {
+  "louvre-ca-6173": require("./assets/sculptures/originals/louvre-ca-6173.jpg"),
+  "louvre-ca-402": require("./assets/sculptures/originals/louvre-ca-402.jpg"),
+  "louvre-br-7035": require("./assets/sculptures/originals/louvre-br-7035.jpg"),
+  "ruhr-apollo-82": require("./assets/sculptures/originals/ruhr-apollo-82.jpg"),
+  "getty-96-am-304": require("./assets/sculptures/originals/getty-96-am-304.jpg"),
   "nam-3335-aphrodite-pan-eros": require("./assets/sculptures/originals/nam-3335-aphrodite-pan-eros.jpg"),
   "arachne-1076032": require("./assets/sculptures/originals/arachne-1076032.jpg"),
   "arachne-1075415": require("./assets/sculptures/originals/arachne-1075415.jpg"),

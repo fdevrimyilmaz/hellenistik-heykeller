@@ -18,7 +18,13 @@
       }
     },
     "web": {
-      "favicon": "./assets/icon.png"
-    }
+      "favicon": "./assets/icon.png",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar"
+    ],
+    "scheme": "hellenistik"
   }
 }
